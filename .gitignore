@@ -1,0 +1,5 @@
+*.py
+*.lock
+**/target
+*.dll
+**/.ce

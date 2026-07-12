@@ -1,0 +1,10 @@
+[package]
+name = "sigmagoon"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+memory.workspace = true
+windows-sys.workspace = true
+hp.workspace = true
+money.workspace = true
