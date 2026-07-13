@@ -1,11 +1,9 @@
 use crate::injector;
 use hp::HpCheat;
-use memory::DeltaruneView;
 use money::MoneyCheat;
 use std::io::{self, Write};
-use std::rc::Rc;
 
-fn read_line(prompt: &str) -> String {
+pub fn read_line(prompt: &str) -> String {
     print!("{}", prompt);
     let _ = io::stdout().flush();
     let mut input = String::new();
@@ -15,19 +13,12 @@ fn read_line(prompt: &str) -> String {
     input.trim().to_string()
 }
 
-pub fn run_repl(view: Rc<DeltaruneView>) {
+pub fn run_repl(mc: MoneyCheat, hp_cheats: &[HpCheat]) {
     println!("\n=== sigmagoon repl ===");
     println!("type 'help' for list of commands or 'exit' to exit, duh.");
 
-    let mc = MoneyCheat::new(&view);
-    let hp_cheats = [
-        HpCheat::new(&view, 0),
-        HpCheat::new(&view, 1),
-        HpCheat::new(&view, 2),
-    ];
-
     loop {
-        let cmd = read_line("\nsigmagoon> ").to_lowercase();
+        let cmd = read_line("sigmagoon > ").to_lowercase();
         if cmd.is_empty() {
             continue;
         }
@@ -133,7 +124,7 @@ pub fn run_repl(view: Rc<DeltaruneView>) {
 
                 println!("options:");
                 println!("  [1] Set HP      [2] Set Max HP   [3] Damage       [4] Heal");
-                println!("  [5] Full Heal   [6] Fake Swoon   [7] Cancel");
+                println!("  [5] Full Heal   [6] Swoon        [7] Cancel");
                 let opt = read_line("> ");
 
                 match opt.as_str() {

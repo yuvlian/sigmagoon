@@ -30,6 +30,21 @@ pub enum DeltaruneError {
 
     #[error("Invalid handle")]
     InvalidHandle,
+
+    #[error("Offset is unimplemented for chapter {0}")]
+    UnimplementedOffset(usize),
+
+    #[error("Failed to get chapter: window title not found or empty")]
+    ChapterWindowNotFound,
+
+    #[error("Failed to get chapter: no valid chapter number found in window title")]
+    ChapterNumberNotFound,
+
+    #[error("Failed to parse chapter number: '{0}'")]
+    ChapterParseError(String),
+
+    #[error("Invalid chapter number {0}: must be between 1 and 7")]
+    InvalidChapterNumber(usize),
 }
 
 pub type Result<T> = std::result::Result<T, DeltaruneError>;

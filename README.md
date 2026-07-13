@@ -66,9 +66,9 @@ because the deltarune game starts a new process when you play a chapter!
 
 ## misc
 
-### tested in
+### supported chapters
 
-chapter 3. should work with other chapters though. TODO: test in more chapters
+right now it only supports chapter 3, feel free to contribute by updating `./memory/src/offsets.rs`
 
 ### credits
 

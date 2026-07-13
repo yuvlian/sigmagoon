@@ -1,4 +1,5 @@
 mod error;
+mod offsets;
 
 use std::{
     ffi::CStr,
@@ -7,7 +8,7 @@ use std::{
 };
 
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
+    Foundation::{CloseHandle, HANDLE, HWND, INVALID_HANDLE_VALUE},
     System::{
         Diagnostics::{
             Debug::{ReadProcessMemory, WriteProcessMemory},
@@ -22,19 +23,27 @@ use windows_sys::Win32::{
             PROCESS_VM_WRITE,
         },
     },
+    UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowTextA, GetWindowTextLengthA, GetWindowThreadProcessId,
+    },
 };
 
 pub use error::{DeltaruneError, Result};
+pub use offsets::{HpOffset, MoneyOffset};
 
 pub struct DeltaruneView {
     process: HANDLE,
     pub module_base: usize,
+    pub chapter: usize,
 }
 
 impl DeltaruneView {
     pub const PROCESS_NAME: &str = "DELTARUNE.exe";
 
-    pub fn new() -> Result<Self> {
+    fn new_with<F>(chapter: F) -> Result<Self>
+    where
+        F: FnOnce(u32) -> Result<usize>,
+    {
         let pid = find_process_id(Self::PROCESS_NAME)
             .ok_or_else(|| DeltaruneError::ProcessNotFound(Self::PROCESS_NAME.to_string()))?;
 
@@ -59,7 +68,40 @@ impl DeltaruneView {
         Ok(Self {
             process,
             module_base,
+            chapter: chapter(pid)?,
         })
+    }
+
+    pub fn new() -> Result<Self> {
+        Self::new_with(Self::get_chapter_from_window)
+    }
+
+    pub fn with_chapter(chapter: usize) -> Result<Self> {
+        Self::new_with(|_| Ok(chapter))
+    }
+
+    fn get_chapter_from_window(pid: u32) -> Result<usize> {
+        let title = get_window_title_by_pid(pid).ok_or(DeltaruneError::ChapterWindowNotFound)?;
+
+        if title.is_empty() {
+            return Err(DeltaruneError::ChapterWindowNotFound);
+        }
+
+        let chapter_char = title
+            .chars()
+            .find(|c| c.is_ascii_digit())
+            .ok_or(DeltaruneError::ChapterNumberNotFound)?;
+
+        let chapter = chapter_char
+            .to_digit(10)
+            .ok_or_else(|| DeltaruneError::ChapterParseError(chapter_char.to_string()))?
+            as usize;
+
+        if let 8.. = chapter {
+            return Err(DeltaruneError::InvalidChapterNumber(chapter));
+        }
+
+        Ok(chapter)
     }
 
     pub fn read<T: Copy>(&self, address: usize) -> Result<T> {
@@ -230,4 +272,48 @@ fn find_module(pid: u32, module: &str) -> Option<usize> {
 
     unsafe { CloseHandle(snapshot) };
     base
+}
+
+pub fn get_window_title_by_pid(pid: u32) -> Option<String> {
+    struct EnumWindowsData {
+        pid: u32,
+        hwnd: HWND,
+    }
+
+    unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: isize) -> i32 {
+        let data = unsafe { &mut *(lparam as *mut EnumWindowsData) };
+        let mut window_pid: u32 = 0;
+        unsafe { GetWindowThreadProcessId(hwnd, &mut window_pid) };
+        if window_pid == data.pid && unsafe { GetWindowTextLengthA(hwnd) } > 0 {
+            data.hwnd = hwnd;
+            return 0;
+        }
+        1
+    }
+
+    let mut data = EnumWindowsData {
+        pid,
+        hwnd: null_mut(),
+    };
+
+    unsafe {
+        EnumWindows(Some(enum_windows_callback), &mut data as *mut _ as isize);
+    }
+
+    if data.hwnd == null_mut() {
+        return None;
+    }
+
+    let len = unsafe { GetWindowTextLengthA(data.hwnd) };
+    if len <= 0 {
+        return None;
+    }
+
+    let mut buffer = vec![0u8; (len + 1) as usize];
+    let copied = unsafe { GetWindowTextA(data.hwnd, buffer.as_mut_ptr(), len + 1) };
+    if copied == 0 {
+        return None;
+    }
+
+    Some(String::from_utf8_lossy(&buffer[..copied as usize]).into_owned())
 }
